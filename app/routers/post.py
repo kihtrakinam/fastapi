@@ -1,6 +1,6 @@
 from .. import models, schemas, oauth2
 from sqlalchemy.orm import Session
-from fastapi import status, HTTPException, Depends, APIRouter
+from fastapi import Response, status, HTTPException, Depends, APIRouter
 from typing import List, Optional
 from sqlalchemy import func
 from ..database import get_db
@@ -20,15 +20,14 @@ def get_posts(db: Session = Depends(get_db), current_user : models.User = Depend
  limit : int = 5, skip : int = 0, search : Optional[str] = ""):
 	posts_query = db.query(models.Post, func.count(models.Vote.post_id).label("votes_count")).\
 		join(models.Vote, models.Vote.post_id == models.Post.id, isouter = True).\
-		filter(models.Post.user_id == current_user.id).\
-		filter(func.lower(models.Post.title).contains(search.lower())).\
+		filter(func.lower(models.Post.content).contains(search.lower())).\
 		group_by(models.Post.id).\
 		order_by(models.Post.id.desc()).offset(skip).limit(limit)
 	posts = posts_query.all()
 	return posts
 
 @router.get("/latest", response_model = schemas.PostVoteResponse)
-def get_latest_post(db: Session = Depends(get_db), current_user : models.User = Depends(oauth2.get_current_user)):
+def get_my_latest_post(db: Session = Depends(get_db), current_user : models.User = Depends(oauth2.get_current_user)):
 	id = db.query(func.max(models.Post.id)).filter(models.Post.user_id == current_user.id).scalar()
 	if id is None:
 		raise HTTPException(status_code = status.HTTP_204_NO_CONTENT)
@@ -44,12 +43,11 @@ def get_specific_post(id : int, db: Session = Depends(get_db), current_user : mo
 		filter(models.Post.id == id).group_by(models.Post.id).first()
 	if posts == None:
 		raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail = f"Post with id : {id} does not exist")
-	if posts.Post.user_id != current_user.id:
-		raise HTTPException(status_code = status.HTTP_403_FORBIDDEN, detail = f"Not authorized to perform requested action")
 	return posts
 
-@router.delete("/{id}", status_code = status.HTTP_204_NO_CONTENT)
-def delete_post(id : int, db: Session = Depends(get_db), current_user : models.User = Depends(oauth2.get_current_user)):
+@router.delete("/{id}")
+def delete_post(id : int, status_code = status.HTTP_204_NO_CONTENT, 
+db: Session = Depends(get_db), current_user : models.User = Depends(oauth2.get_current_user)):
 	post_query = db.query(models.Post).filter(models.Post.id == id)
 	posts = post_query.first()
 	if posts == None:
@@ -58,6 +56,7 @@ def delete_post(id : int, db: Session = Depends(get_db), current_user : models.U
 		raise HTTPException(status_code = status.HTTP_403_FORBIDDEN, detail = f"Not authorized to perform requested action")
 	post_query.delete(synchronize_session=False)
 	db.commit()
+	return Response(status_code = status_code)
 
 @router.put("/{id}", response_model = schemas.PostVoteResponse)
 def update_post(id : int, post : schemas.PostUpdate, db: Session = Depends(get_db), 

@@ -12,11 +12,19 @@ class TokenData(BaseModel):
 class UserCreate(BaseModel):
 	email : EmailStr
 	password : str
+	phone_number : str
 
 class UserResponse(BaseModel):
 	id : int
 	email : EmailStr
 	created_at : datetime
+
+	class Config:
+		orm_mode = True
+
+class UserPostResponse(BaseModel):
+	id : int
+	email : EmailStr
 
 	class Config:
 		orm_mode = True
@@ -41,11 +49,10 @@ class PostUpdate(PostBase):
 
 class PostResponse(BaseModel):
 	id : int
-	user_id : int
 	title : str
 	content : str
 	created_at : datetime
-	user : UserResponse
+	user : UserPostResponse
 
 	class Config:
 		orm_mode = True
